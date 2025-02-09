@@ -18,3 +18,9 @@ docs/
 
 
 ./lib/*
+
+./lib
+
+
+.gitignore
+

@@ -52,18 +52,25 @@ contract PaymentForwarderTest is Test {
     }
 
     function testTakeFee() public {
-        //Approve PF to transfer funs
-        vm.prank(user1);
-        usdc.approve(address(paymentForwarder), 100e18);
-
-        //Transfer Funds Via Contract
-        vm.prank(user1);
-        paymentForwarder.sendPayment(user2, 100e18);
-
-        //assert
-        assertEq(usdc.balanceOf(user1), 900e18);
-        assertEq(usdc.balanceOf(user2), 100e18 - 2e18);
-        assertEq(usdc.balanceOf(address(paymentForwarder)), 2e18);
-        //
+        uint256 transferAmount = 100e18;
+        uint256 expectedFee = (transferAmount * paymentForwarder.feePercent()) / 10000;
+        uint256 expectedRecipientAmount = transferAmount - expectedFee;
+        
+        // Store initial balances
+        uint256 initialBalanceUser1 = usdc.balanceOf(user1);
+        uint256 initialBalanceUser2 = usdc.balanceOf(user2);
+        uint256 initialBalanceForwarder = usdc.balanceOf(address(paymentForwarder));
+    
+        // Approve the contract to spend `transferAmount`
+        vm.startPrank(user1);
+        usdc.approve(address(paymentForwarder), transferAmount);
+        paymentForwarder.sendPayment(user2, transferAmount);
+        vm.stopPrank();
+    
+        // Assertions
+        assertEq(usdc.balanceOf(user1), initialBalanceUser1 - transferAmount, "User1 balance incorrect");
+        assertEq(usdc.balanceOf(user2), initialBalanceUser2 + expectedRecipientAmount, "User2 balance incorrect");
+        assertEq(usdc.balanceOf(address(paymentForwarder)), initialBalanceForwarder + expectedFee, "Forwarder fee balance incorrect");
     }
+    
 }

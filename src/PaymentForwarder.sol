@@ -36,8 +36,8 @@ contract PaymentForwarder is OwnableUpgradeable, UUPSUpgradeable {
         address _usdc,
         address _multiSigWallet,
         uint256 _feePercent,
-        address[] memory _teamMembers,
-        uint256[] memory _shares
+        address[] memory _teamMembers, //team members
+        uint256[] memory _shares ///correspoding shares, Should add to be 10000
     ) public initializer {
         require(_feePercent <= 10000, "Fee percent too high");
         require(_multiSigWallet != address(0), "Multi-sig wallet cannot be zero");

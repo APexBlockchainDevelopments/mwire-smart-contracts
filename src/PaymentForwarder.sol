@@ -4,20 +4,16 @@ pragma solidity 0.8.28;
 
 import {UUPSUpgradeable} from "@openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
-interface IERC20 {
-    function transfer(address recipient, uint256 amount) external returns (bool);
-    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
-    function balanceOf(address account) external view returns (uint256);
-}
-
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract PaymentForwarder is OwnableUpgradeable, UUPSUpgradeable {
     uint256 public feePercent; // Fee percentage (e.g., 2% = 200 basis points)
-    uint256 public totalFeesCollected; // Tracks accumulated fees in USDC
+    uint256 public accruedFees; // Tracks accumulated fees in USDC
     uint256 public totalShares; // Sum of all shares (should equal 10,000 basis points)
 
     IERC20 public usdc; // USDC token contract
     address public multiSigWallet; // Multi-sig wallet address
+    address public feeDistributor; //Address to distribute fees. 
 
     address[] public teamMembers; // Team members receiving fees
 
@@ -35,14 +31,17 @@ contract PaymentForwarder is OwnableUpgradeable, UUPSUpgradeable {
     function initialize(
         address _usdc,
         address _multiSigWallet,
+        address _feeDistributor,
         uint256 _feePercent,
         address[] memory _teamMembers, //team members
-        uint256[] memory _shares ///correspoding shares, Should add to be 10000
+        uint256[] memory _shares ///corresponding shares, Should add to be 10000
     ) public initializer {
         require(_feePercent <= 10000, "Fee percent too high");
         require(_multiSigWallet != address(0), "Multi-sig wallet cannot be zero");
+        require(_feeDistributor != address(0), "Fee distribtor wallet cannot be zero");
         require(_usdc != address(0), "USDC token cannot be zero address");
         require(_teamMembers.length == _shares.length, "Team and shares mismatch");
+        
 
         __Ownable_init(_multiSigWallet);
         __UUPSUpgradeable_init();
@@ -56,9 +55,9 @@ contract PaymentForwarder is OwnableUpgradeable, UUPSUpgradeable {
         }
 
         require(_totalShares == 10000, "Total shares must equal 10000 basis points");
-
         usdc = IERC20(_usdc);
         multiSigWallet = _multiSigWallet;
+        feeDistributor = _feeDistributor;
         feePercent = _feePercent;
         teamMembers = _teamMembers;
         totalShares = _totalShares;
@@ -80,18 +79,18 @@ contract PaymentForwarder is OwnableUpgradeable, UUPSUpgradeable {
         require(usdc.transfer(recipient, amountAfterFee), "USDC transfer to recipient failed");
 
         // Accumulate fee
-        totalFeesCollected += fee;
+        accruedFees += fee;
 
         emit PaymentProcessed(msg.sender, recipient, totalAmount, fee);
     }
 
     /// @dev Allows the multi-sig wallet to distribute accumulated fees
     function distributeFees() external {
-        require(msg.sender == multiSigWallet, "Only multi-sig wallet can distribute fees");
-        require(totalFeesCollected > 0, "No fees to distribute");
+        require(msg.sender == feeDistributor, "Only fee distributor can distribute fees");
+        require(accruedFees > 0, "No fees to distribute");
 
-        uint256 feesToDistribute = totalFeesCollected;
-        totalFeesCollected = 0; // Reset the fee counter
+        uint256 feesToDistribute = accruedFees;
+        accruedFees = 0; // Reset the fee counter
 
         // Distribute fees to team members
         for (uint256 i = 0; i < teamMembers.length; i++) {
@@ -132,9 +131,15 @@ contract PaymentForwarder is OwnableUpgradeable, UUPSUpgradeable {
         emit TeamUpdated(_newTeamMembers, _newShares);
     }
 
-    function updateFees(uint256 _newFeePercent) public {
+    function updateFees(uint256 _newFeePercent) public onlyOwner() {
         require(_newFeePercent <= 10000, "Fee percent too high");
         feePercent = _newFeePercent;
+    }
+
+
+    function updateFeeDistributor(address _newFeeDistibutor) public onlyOwner(){
+        require(_newFeeDistibutor != address(0), "Fee distribtor wallet cannot be zero");
+        feeDistributor = _newFeeDistibutor;
     }
 
 
@@ -143,12 +148,20 @@ contract PaymentForwarder is OwnableUpgradeable, UUPSUpgradeable {
         upgradeToAndCall(newImplementation, "");
     }
 
-        /**
+    /**
      * @notice Authorizes an upgrade to the contract implementation.
      * @dev Implements the UUPS proxy pattern's authorization mechanism. This function is called during upgrades to validate the new implementation.
      * @param newImplementation The address of the new implementation contract.
      */
     function _authorizeUpgrade(address newImplementation) internal onlyOwner override{}
+
+    function getTeamMembers() public view returns(address[] memory){
+        return teamMembers;
+    }
+
+    function getAccruedFees() public view returns(uint256) {
+        return accruedFees;
+    }
 
 }
 

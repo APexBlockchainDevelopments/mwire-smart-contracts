@@ -11,6 +11,9 @@ contract PaymentForwarderTest is Test {
     MockUSDC usdc;
     address multiSigWallet = address(0x123456);
 
+    address user1 = makeAddr("user1");
+    address user2 = makeAddr("user2");
+
     function setUp() public {
         usdc = new MockUSDC(); // Deploy mock USDC
 
@@ -44,5 +47,23 @@ contract PaymentForwarderTest is Test {
         assertEq(paymentForwarder.feePercent(), 200, "Fee percent should be 2%");
         assertEq(paymentForwarder.multiSigWallet(), multiSigWallet, "Multi-sig wallet mismatch");
         assertEq(paymentForwarder.totalShares(), 10000, "Total shares should equal 10000 basis points");
+
+        usdc.mint(user1, 1000e18);
+    }
+
+    function testTakeFee() public {
+        //Approve PF to transfer funs
+        vm.prank(user1);
+        usdc.approve(address(paymentForwarder), 100e18);
+
+        //Transfer Funds Via Contract
+        vm.prank(user1);
+        paymentForwarder.sendPayment(user2, 100e18);
+
+        //assert
+        assertEq(usdc.balanceOf(user1), 900e18);
+        assertEq(usdc.balanceOf(user2), 100e18 - 2e18);
+        assertEq(usdc.balanceOf(address(paymentForwarder)), 2e18);
+        //
     }
 }

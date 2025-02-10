@@ -8,14 +8,14 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract PaymentForwarder is OwnableUpgradeable, UUPSUpgradeable {
     uint256 public feePercent; // Fee percentage (e.g., 2% = 200 basis points)
-    uint256 public accruedFees; // Tracks accumulated fees in USDC
+    uint256 private accruedFees; // Tracks accumulated fees in USDC
     uint256 public totalShares; // Sum of all shares (should equal 10,000 basis points)
 
     IERC20 public usdc; // USDC token contract
     address public multiSigWallet; // Multi-sig wallet address
     address public feeDistributor; //Address to distribute fees. 
 
-    address[] public teamMembers; // Team members receiving fees
+    address[] private teamMembers; // Team members receiving fees
 
     mapping(address => uint256) public memberShares; // Basis points of each member's share (e.g., 2500 = 25%)
 
@@ -138,7 +138,7 @@ contract PaymentForwarder is OwnableUpgradeable, UUPSUpgradeable {
 
 
     function updateFeeDistributor(address _newFeeDistibutor) public onlyOwner(){
-        require(_newFeeDistibutor != address(0), "Fee distribtor wallet cannot be zero");
+        require(_newFeeDistibutor != address(0), "Fee distributor wallet cannot be zero");
         feeDistributor = _newFeeDistibutor;
     }
 

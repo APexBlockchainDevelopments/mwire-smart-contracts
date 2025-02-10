@@ -12,21 +12,26 @@ contract PaymentForwarderTest is Test {
     address multiSigWallet = address(0x123456);
     address feeDistributor = makeAddr("feeDistributor");
 
+    address teamMember1 = makeAddr("teamMember1");
+    address teamMember2 = makeAddr("teamMember2");
+    address teamMember3 = makeAddr("teamMember3");
+
     address user1 = makeAddr("user1");
     address user2 = makeAddr("user2");
+
+    address[] teamMembers;
+    uint256[] shares;  
 
     function setUp() public {
         usdc = new MockUSDC(); // Deploy mock USDC
 
-        address[] memory teamMembers = new address[](3);
-        teamMembers[0] = address(0x1);
-        teamMembers[1] = address(0x2);
-        teamMembers[2] = address(0x3);
+        teamMembers.push(teamMember1);
+        teamMembers.push(teamMember2);
+        teamMembers.push(teamMember3);
 
-        uint256[] memory shares = new uint256[](3);
-        shares[0] = 3000; // 30%
-        shares[1] = 4000; // 40%
-        shares[2] = 3000; // 30%
+        shares.push(3000); // 30%
+        shares.push(4000); // 40%
+        shares.push(3000); // 30%
 
         // Deploy the proxy contract
         PaymentForwarder implementation = new PaymentForwarder();
@@ -94,7 +99,6 @@ contract PaymentForwarderTest is Test {
         paymentForwarder.distributeFees();
     
         // Store initial balances of team members
-        address[] memory teamMembers = paymentForwarder.getTeamMembers();
         uint256[] memory initialBalances = new uint256[](teamMembers.length);
         for (uint256 i = 0; i < 3; i++) {
             initialBalances[i] = usdc.balanceOf(teamMembers[i]);
@@ -113,6 +117,48 @@ contract PaymentForwarderTest is Test {
             uint256 newBalance = usdc.balanceOf(teamMembers[i]);
             assertEq(newBalance, initialBalances[i] + expectedShare, "Incorrect fee distribution for team member");
         }
+    }
+
+
+    function testUpdateTeamStructure() public {
+        address[] memory newTeam = new address[](2);
+        newTeam[0] = address(0xA1);
+        newTeam[1] = address(0xA2);
+    
+        uint256[] memory newShares = new uint256[](2);
+        newShares[0] = 5000; // 50%
+        newShares[1] = 5000; // 50%
+    
+        // Unauthorized user should fail
+        vm.expectRevert("Only multi-sig wallet can update the team");
+        vm.prank(user1);
+        paymentForwarder.updateTeamStructure(newTeam, newShares);
+    
+        // Authorized call from the multi-sig wallet
+        vm.prank(multiSigWallet);
+        paymentForwarder.updateTeamStructure(newTeam, newShares);
+    
+        // Check that the update was successful
+        address[] memory updatedTeam = paymentForwarder.getTeamMembers();
+        assertEq(updatedTeam.length, newTeam.length, "Team size mismatch");
+        assertEq(updatedTeam[0], newTeam[0], "First team member mismatch");
+        assertEq(updatedTeam[1], newTeam[1], "Second team member mismatch");
+    
+        // Verify new shares
+        assertEq(paymentForwarder.memberShares(newTeam[0]), newShares[0], "First share mismatch");
+        assertEq(paymentForwarder.memberShares(newTeam[1]), newShares[1], "Second share mismatch");
+    }
+
+
+    function testUpdateFeeDistributor() public {
+        address newFeeDistributor = makeAddr("newFeeDistributor");
+
+        vm.expectRevert("Fee distributor wallet cannot be zero");
+        vm.prank(user1);
+        paymentForwarder.updateFeeDistributor(newFeeDistributor);
+
+
+        
     }
     
     
